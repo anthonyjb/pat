@@ -3,7 +3,6 @@ Support for reading and writing Ned Graphics pattern (.PAT) files. (Note:
 There is no support for compressed .PAT files.)
 
 Examples >>
-
     import pat
 
     # Load a pattern file
@@ -102,9 +101,9 @@ def loads(s):
     drop = struct.unpack_from('<H', s, 30)[0]
     
     # Extract colour channels
-    greens = struct.unpack_from('256B', s, 513)
+    greens = struct.unpack_from('256B', s, 512)
     reds = struct.unpack_from('256B', s, 768)
-    blues = struct.unpack_from('256B', s, 1025)
+    blues = struct.unpack_from('256B', s, 1024)
     channels = [(reds[i], greens[i], blues[i]) for i in range(0, 256)]
     
     # Extract the bitmap data
