@@ -41,17 +41,68 @@ __all__ = [
     ]
 
 
+class TooManyChannels(Exception):
+    """
+    This issue is raised when a Pattern is initialized with more than the
+    supported number of channels.
+    """
+
+
 class Pattern(object):
     """
     A pattern.
     """
     
-    def __init__(self, size, drop, channels, bitmap):
+    MAX_CHANNELS = 256
+    
+    def __init__(self, size, drop, channels, bitmap, qual=0):
         self.size = size
         self.drop = drop
         self.channels = channels
         self.bitmap = bitmap
+        self.qual = qual
+        
+        # If there's more than 256 colours raise an error
+        if len(channels) > Pattern.MAX_CHANNELS:
+            raise TooManyChannels()
+
+    @property
+    def columns_per_inch(self):
+        return 7 # Hard set for Brintons looms (7 tufts per inch horizontally)
+
+    @property
+    def columns_per_metre(self):
+        return self.columns_per_inch * (1000.0 / 25.40)
+
+    @property
+    def rows_per_inch(self):
+        if self.qual >= 71 and self.qual <= 79: # Old format
+            return self.qual % 10
     
+        elif self.qual >= 501 and self.qual <= 1099 and self.qual % 100 >= 3 and self.qual % 100 <= 24: # New forman
+            return self.qual % 100
+        
+        # No idea
+        return 0.0
+    
+    @property
+    def rows_per_metre(self):
+        return self.rows_per_inch * (1000.0 / 25.40)
+    
+    @property
+    def size_inches(self):
+        return (
+            float(self.size[0]) / self.columns_per_inch,
+            float(self.size[1]) / self.rows_per_inch
+            )
+            
+    @property
+    def size_metres(self):
+        return (
+            float(self.size_inches[0]) / (1000.0 / 25.40),
+            float(self.size_inches[1]) / (1000.0 / 25.40)
+            )
+        
     def to_image(self, full_repeat=False):
         """
         Convert the pattern to an image. Optional you can specify to convert
@@ -109,8 +160,15 @@ def loads(s):
     # Extract the bitmap data
     bitmap = struct.unpack_from(str(width * height) + 'B', s, 1536)
     
+    # Attempt to extract the rows per inch
+    qual = struct.unpack_from('>H', s, 18)[0]
+    
     # Create and return a pattern instance
-    return Pattern((width, height), drop, channels, list(bitmap))
+    return Pattern(
+        (width, height),
+        drop, channels,
+        list(bitmap),
+        qual)
 
 def dumps(pattern):
     """Save a pattern to a string"""
@@ -130,5 +188,9 @@ def dumps(pattern):
     
     # Write the bitmap
     struct.pack_into(str(len(pattern.bitmap)) + 'B', buf, 1536, *pattern.bitmap)
+    
+    # Write the rows per inch (if we have one)
+    if pattern.qual > 0:
+        struct.pack_into('>H', buf, 18, pattern.qual)
     
     return buf
